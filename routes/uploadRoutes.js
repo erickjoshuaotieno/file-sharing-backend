@@ -8,14 +8,22 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Upload route
+// ✅ Upload route (handles images, pdfs, docs, zips, etc.)
 router.post("/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
+    // Detect file type (image vs others)
+    const isImage = req.file.mimetype.startsWith("image/");
+
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: "auto" },
+        {
+          resource_type: isImage ? "image" : "raw", // ✅ handle all file types
+          use_filename: true,                       // ✅ keep original file name
+          unique_filename: false,                   // ✅ no random name
+          public_id: req.file.originalname.split(".")[0], // optional, cleaner URLs
+        },
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
@@ -24,6 +32,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       stream.end(req.file.buffer);
     });
 
+    // ✅ Return Cloudinary file URL
     res.json({ url: result.secure_url });
   } catch (err) {
     console.error("Upload error:", err);
@@ -31,17 +40,18 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-// ✅ Download route
+// ✅ Download route (redirects to Cloudinary file)
 router.get("/download", async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: "No URL provided" });
 
-    // Option 1: Redirect user to Cloudinary hosted file
+    // Option 1: Just redirect to Cloudinary-hosted file
     return res.redirect(url);
 
-    // Option 2 (optional): stream file content directly
+    // Option 2 (optional): Force direct download
     // const response = await fetch(url);
+    // res.setHeader("Content-Disposition", "attachment; filename=file");
     // response.body.pipe(res);
   } catch (err) {
     console.error("Download error:", err);
