@@ -1,4 +1,4 @@
-//uploadroute.js (Corrected)
+//uploadroute.js (Final Fix for Uniqueness)
 import express from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
@@ -13,22 +13,33 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // === THE FIX ===
-    // 1. Parse the original filename
+    // 1. Parse the original filename and extension
     const parsedName = path.parse(req.file.originalname);
-    const publicId = parsedName.name; // e.g., "ERICK JOSHUA OTIENO- CV"
-    const format = parsedName.ext.substring(1); // e.g., "docx" (remove the ".")
-    // === END FIX ===
+    const baseName = parsedName.name; // e.g., "ERICK JOSHUA OTIENO- CV"
+    const format = parsedName.ext.substring(1); // e.g., "docx"
+
+    // 2. Sanitize the base name for use in a URL/Public ID
+    // Removes non-alphanumeric characters (except - and _) and replaces spaces with underscores
+    const sanitizedBaseName = baseName
+      .toLowerCase()
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/[^a-z0-9_-]/g, '') // Remove all other special characters
+      .substring(0, 60); // Keep it reasonably short
+
+    // 3. Generate a UNQIUE Public ID by prepending a timestamp
+    const timestamp = Date.now();
+    const uniquePublicId = `${timestamp}_${sanitizedBaseName}`;
+    // e.g., "1709283600000_erick_joshua_otieno-cv"
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          // === UPDATED OPTIONS ===
-          resource_type: "auto", // ✅ Still correct: auto-detect image/video/raw
-          public_id: publicId, // ✅ Set the base name
-          format: format, // ✅ Explicitly provide the file extension
-          unique_filename: false, // ✅ Honor your original setting
-          // === END UPDATED OPTIONS ===
+          // === THE FINAL, SAFE OPTIONS ===
+          resource_type: "auto", // Automatically detects type (image, video, raw)
+          public_id: uniquePublicId, // Guaranteed unique ID
+          format: format, // Explicitly preserves the extension (e.g., "docx")
+          unique_filename: false, // We don't need Cloudinary to make it unique, we did it above
+          // === END SAFE OPTIONS ===
         },
         (error, result) => {
           if (error) reject(error);
@@ -38,8 +49,8 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       stream.end(req.file.buffer);
     });
 
-    // The result.secure_url will now be correct
-    // e.g., .../raw/upload/v12345/ERICK JOSHUA OTIENO- CV.docx
+    // The result.secure_url will now contain the unique public ID and correct extension
+    // e.g., .../raw/upload/v12345/1709283600000_erick_joshua_otieno-cv.docx
     res.json({ url: result.secure_url });
   } catch (err) {
     console.error("Upload error:", err);
@@ -47,7 +58,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-// Download route (unchanged, it's correct)
+// Download route (correct)
 router.get("/download", async (req, res) => {
   try {
     const { url } = req.query;
