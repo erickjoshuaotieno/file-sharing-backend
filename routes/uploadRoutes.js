@@ -3,6 +3,7 @@ import express from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import path from "path"; // Make sure path is imported
+import axios from "axios";
 
 const router = express.Router();
 
@@ -61,9 +62,24 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 // Download route (correct)
 router.get("/download", async (req, res) => {
   try {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: "No URL provided" });
-    return res.redirect(url);
+    const { url, filename } = req.query;
+    if (!url || !filename) {
+      return res.status(400).json({ error: "URL and filename are required" });
+    }
+
+    // Fetch the file from Cloudinary as a stream
+    const response = await axios({
+      url,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    // Set headers to force download
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', response.headers['content-type']);
+
+    // Pipe the file stream to the client
+    response.data.pipe(res);
   } catch (err) {
     console.error("Download error:", err);
     res.status(500).json({ error: "Download failed" });
