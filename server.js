@@ -1,25 +1,42 @@
+// server.js
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { v2 as cloudinary } from "cloudinary";
 import uploadRoutes from "./routes/uploadRoutes.js";
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
 
-// Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET,
-});
+// ✅ Explicit & flexible CORS setup
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://your-frontend-domain.com"
+];
 
-// Routes
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn("❌ Blocked by CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: true,
+  })
+);
+
+app.use(express.json());
+
+// ✅ Routes
 app.use("/", uploadRoutes);
 
-app.get("/", (req, res) => res.send("Backend is runningV2 ✅"));
+// ✅ Simple health check
+app.get("/", (req, res) => res.send("Backend using AWS S3 ✅"));
 
+// ✅ Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 BackendV2 running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
