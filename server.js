@@ -11,7 +11,7 @@ const app = express();
 // ✅ Explicit & flexible CORS setup
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://your-frontend-domain.com"
+  "https://my-frontend-filesharing.vercel.app"
 ];
 
 app.use(
